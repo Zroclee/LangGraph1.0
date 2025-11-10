@@ -3,17 +3,34 @@ load_dotenv()
 
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
-from langchain_core.tools import tool
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain.tools import tool
 from tools.baidu_search import BaiduSearchTool
 import prompts
 
-from langgraph.checkpoint.memory import InMemorySaver
+
 
 baiduTool = BaiduSearchTool()
 
-# @tool
-# def current_time:
-#     return Dete()
+from datetime import datetime, timezone
+
+@tool("current_time", description="获取当前年月日、时分秒")
+def current_time(fmt: str = "%Y-%m-%d %H:%M:%S", tz: str = "local") -> str:
+    """获取当前时间。
+    可选参数：
+    - fmt: 时间格式化字符串，默认 "%Y-%m-%d %H:%M:%S"
+    - tz: 时区，"UTC" 或 "local"，默认 "local"
+    返回格式化后的当前时间字符串。
+    """
+    try:
+        print("获取当前时间")
+        if tz.upper() == "UTC":
+            now = datetime.now(timezone.utc)
+        else:
+            now = datetime.now()
+        return now.strftime(fmt)
+    except Exception:
+        return datetime.now().isoformat()
 
 # temperature：用于控制随机性的模型温度。
 # max_tokens：输出令牌的最大数量。
@@ -32,10 +49,10 @@ model = init_chat_model(
 )
 
 agent = create_agent(
-    tools=[baiduTool],
+    tools=[baiduTool, current_time],
     model=model,
     system_prompt=prompts.default_rag,
-    checkpoint=InMemorySaver(),
+    checkpointer=InMemorySaver(),
 )
 
 # 保存工作流图表
