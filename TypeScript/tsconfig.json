@@ -10,5 +10,6 @@
 		"types": ["node"],
 		"lib": ["ES2020", "DOM"]
 	},
+	"exclude": ["node_modules/**/*"],
 	"include": ["learn/**/*.ts"]
 }

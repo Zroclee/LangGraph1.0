@@ -1,16 +1,24 @@
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
-const api_key = process.env.DASHSCOPE_API_KEY;
 
 const client = new MultiServerMCPClient({
-	amap_maps: {
-		transport: "sse",
-		url: "https://dashscope.aliyuncs.com/api/v1/mcps/amap-maps/sse",
-		headers: {
-			Authorization: `Bearer ${api_key}`,
-		},
+	amap_mcp_server: {
+		transport: "http",
+		url: "https://mcp.amap.com/mcp?key=" + process.env.AMAP_API_KEY,
 	},
 });
 
-client.getTools().then((tools) => {
-	console.log(tools);
-});
+// const test = async () => {
+// 	const tools = await client.getTools();
+// 	tools.forEach(async (e) => {
+// 		console.log(e);
+// 		if (e.name === "maps_weather") {
+// 			const result = await e.invoke({ city: "深圳" });
+// 			console.log(result);
+// 		}
+// 	});
+// };
+// test();
+
+export const getAmapMcpTools = async () => {
+	return await client.getTools();
+};
