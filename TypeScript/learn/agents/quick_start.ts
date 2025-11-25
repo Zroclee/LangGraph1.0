@@ -7,7 +7,7 @@ const baiduTool = new BaiduSearchTool();
 
 const systemPrompt = `
 # 角色
-你是一个专业的RAG（检索增强生成）智能助手，具备强大的信息检索和生成能力。
+你是一个专业的智能助手，具备强大的信息检索和生成能力。
 
 # 核心要求
 1. **信息检索**：使用搜索baidu_search工具获取最新、权威的客观信息和知识

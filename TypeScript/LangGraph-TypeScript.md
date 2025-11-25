@@ -81,7 +81,7 @@ LangGraph 是一个“低级别”的编排框架，这赋予了它极大的灵�
 
 ## 快速开始
 
-TL;DR：选定一个对话模型 + 一个搜索/检索工具 → 定义状态 → 用 `createAgent` 串联 → 在终端交互跑通。
+选定一个对话模型 + 一个搜索/检索工具 → 定义状态 → 用 `createAgent` 串联 → 在终端交互跑通。
 
 ### 准备工作
 
@@ -94,7 +94,7 @@ TL;DR：选定一个对话模型 + 一个搜索/检索工具 → 定义状态 �
 ```shell
 pnpm init
 pnpm install ts-node typescript dotenv --save-dev
-pnpm install @langchain/core @langchain/langgraph @langchain/openai --save
+pnpm install @langchain/core @langchain/langgraph @langchain/openai @langchain/deepseek --save
 ```
 
 ### 配置环境变量
