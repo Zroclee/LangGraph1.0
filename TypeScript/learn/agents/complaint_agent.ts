@@ -30,6 +30,8 @@
  */
 
 import * as z from "zod";
+import fs from "fs";
+import path from "path";
 
 // 投诉类型定义 - 基于业务类别和原因类别
 const ComplaintTypeSchema = z
@@ -129,7 +131,7 @@ const structured_model = model.withStructuredOutput(IntentOutPutSchema, {
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 // 查询客户信息节点
-const customer_info_node = async (state: TypeComplaintAgentState) => {
+const customer_info_node = () => {
 	return {
 		customer_info: {
 			name: "李照鹏",
@@ -175,35 +177,88 @@ const intent_node = async (state: TypeComplaintAgentState) => {
 	return { intent_type: result.type, intent_level: result.level };
 };
 
+import {
+	business_tool,
+	service_tool,
+	process_tool,
+	security_tool,
+	other_tool,
+} from "../tools/complaintTool";
+
+/**
+ * 业务节点 - 处理业务类投诉(银行卡、贷款、支付结算、理财)
+ * @param {TypeComplaintAgentState} state - 投诉智能体状态
+ * @returns {Object} 业务系统处理结果
+ */
 const business_node = async (state: TypeComplaintAgentState) => {
-	// 通知业务系统
-	return "投诉处理完成";
+	const { intent_type, intent_level, customer_info } = state;
+	const res = await business_tool(intent_type, intent_level, customer_info);
+	return { retrieval_result: JSON.stringify(res.processing_result.data) };
 };
 
+/**
+ * 服务节点 - 处理服务类投诉(服务态度、服务质量、营销销售、收费定价)
+ * @param {TypeComplaintAgentState} state - 投诉智能体状态
+ * @returns {Object} 服务系统处理结果
+ */
 const service_node = async (state: TypeComplaintAgentState) => {
-	// 获取服务结果
-	return "投诉处理完成";
+	const { intent_type, intent_level, complaint_info, customer_info } = state;
+	const res = await service_tool(intent_type, intent_level, customer_info);
+	return { retrieval_result: JSON.stringify(res.processing_result.data) };
 };
 
+/**
+ * 流程节点 - 处理制度流程类投诉
+ * @param {TypeComplaintAgentState} state - 投诉智能体状态
+ * @returns {Object} 流程系统处理结果
+ */
 const process_node = async (state: TypeComplaintAgentState) => {
-	return "投诉处理完成";
+	const { intent_type, intent_level, complaint_info, customer_info } = state;
+	const res = await process_tool(intent_type, intent_level, customer_info);
+	return { retrieval_result: JSON.stringify(res.processing_result.data) };
 };
+/**
+ * 安全节点 - 处理信息披露类投诉
+ * @param {TypeComplaintAgentState} state - 投诉智能体状态
+ * @returns {Object} 安全合规系统处理结果
+ */
 const security_node = async (state: TypeComplaintAgentState) => {
-	// 获取安全结果
-	return "投诉处理完成";
+	const { intent_type, intent_level, complaint_info, customer_info } = state;
+	const res = await security_tool(intent_type, intent_level, customer_info);
+	return { retrieval_result: JSON.stringify(res.processing_result.data) };
 };
+/**
+ * 其他节点 - 处理其他类型投诉
+ * @param {TypeComplaintAgentState} state - 投诉智能体状态
+ * @returns {Object} 综合处理系统结果
+ */
 const other_node = async (state: TypeComplaintAgentState) => {
-	// 获取安全结果
-	return "投诉处理完成";
+	const { intent_type, intent_level, complaint_info, customer_info } = state;
+	const res = await other_tool(intent_type, intent_level, customer_info);
+	return { retrieval_result: JSON.stringify(res.processing_result.data) };
 };
 
-// 回复生成节点
+// 读取客服服务提示词
+const customer_service_md = fs.readFileSync(
+	path.join(__dirname, "../prompts/customer_service.md"),
+	"utf-8"
+);
+
+/**
+ * 回复生成节点 - 根据投诉内容和处理结果生成客服回复
+ * @param {TypeComplaintAgentState} state - 投诉智能体状态
+ * @returns {Object} 包含生成的回复结果
+ */
 const reply_node = async (state: TypeComplaintAgentState) => {
 	const result = await model.invoke([
-		new SystemMessage(""),
-		new HumanMessage(""),
+		new SystemMessage(customer_service_md),
+		new HumanMessage(`
+			投诉标题：${state.complaint_info.title}
+			投诉内容：${state.complaint_info.description}
+			处理结果：${state.retrieval_result}
+			`),
 	]);
-	return result;
+	return { reply_result: result.content };
 };
 
 // 通知人工节点
@@ -235,15 +290,16 @@ import { StateGraph, START, END } from "@langchain/langgraph";
 
 const workflow = new StateGraph(ComplaintAgentState)
 	.addNode("intent", intent_node)
+	.addNode("customer", customer_info_node)
 	.addNode("business", business_node)
 	.addNode("service", service_node)
 	.addNode("process", process_node)
 	.addNode("security", security_node)
 	.addNode("other", other_node)
 	.addNode("reply", reply_node)
-	.addNode("notify", notify_node)
 	.addEdge(START, "intent")
-	.addConditionalEdges("intent", shouldContinue, {
+	.addEdge("intent", "customer")
+	.addConditionalEdges("customer", shouldContinue, {
 		business: "business",
 		service: "service",
 		process: "process",
@@ -255,13 +311,10 @@ const workflow = new StateGraph(ComplaintAgentState)
 	.addEdge("process", "reply")
 	.addEdge("security", "reply")
 	.addEdge("other", "reply")
-	.addEdge("reply", "notify")
-	.addEdge("notify", END);
+	.addEdge("reply", END);
 
 const graph = workflow.compile();
 
-import fs from "fs";
-import path from "path";
 const saveGraphImage = async () => {
 	try {
 		const graphObj = await graph.getGraphAsync();
@@ -284,3 +337,121 @@ const saveGraphImage = async () => {
 	}
 };
 saveGraphImage();
+
+/**
+ * // 示例 1: 银行卡业务 - 高级别投诉
+graph.invoke({
+    complaint_info: {
+        title: "信用卡被盗刷5万元未能及时止损",
+        description: "我的信用卡在2024年11月25日凌晨3点在境外被盗刷了5万元，当时我人在深圳并持有卡片。我立即拨打客服电话申请冻结，但客服系统繁忙无人接听，导致又被盗刷2笔共计2万元。直到早上7点才联系上客服冻结卡片，此时已造成7万元损失。我认为银行风控系统存在严重问题，且客服响应不及时，要求银行承担全部损失并赔偿。",
+    },
+});
+
+// 示例 2: 服务态度 - 中级别投诉
+graph.invoke({
+    complaint_info: {
+        title: "柜台工作人员服务态度恶劣",
+        description: "今天上午10点我在深圳分行营业部办理业务时，3号柜台的工作人员态度非常差。我询问理财产品相关问题时，她不耐烦地说'不懂就别买，浪费时间'，并且在我填写单据时多次催促，让我感到非常不舒服。作为老客户，我对这种服务态度非常失望，希望银行能够重视员工培训，提升服务质量。",
+    },
+});
+
+// 示例 3: 误导销售 - 高级别投诉  
+graph.invoke({
+    complaint_info: {
+        title: "理财经理误导销售高风险理财产品",
+        description: "上个月理财经理向我推荐了一款理财产品，声称是保本保息、随时可赎回，年化收益6%。我投入了50万元。但现在产品亏损了8万元,我要求赎回时被告知有3个月封闭期。查看合同才发现这是一款R4风险等级的非保本浮动收益产品。理财经理在销售时完全没有告知风险，涉嫌误导销售，我要求银行退还本金并赔偿损失。",
+    },
+});
+
+// 示例 4: 贷款业务 - 紧急级别投诉
+graph.invoke({
+    complaint_info: {
+        title: "房贷利率违规上浮威胁断贷",
+        description: "我2020年办理的首套房贷款，合同约定LPR+0.5%。但从今年开始,银行擅自将利率调整为LPR+1.2%，每月多还款2000多元。我多次与银行沟通要求恢复原利率，但客户经理态度强硬，称这是总行统一调整。如果不接受就要求提前还款，否则影响征信。这严重侵害了我的合法权益，我已准备向银保监会投诉并寻求法律途径解决。",
+    },
+});
+
+// 示例 5: 收费定价 - 中级别投诉
+graph.invoke({
+    complaint_info: {
+        title: "账户管理费和短信费乱扣费",
+        description: "我在你行开立的储蓄账户，最近3个月每月都被扣除10元账户管理费和3元短信服务费。但我从未申请过短信服务，账户管理费的收取标准也不清楚。我查询时柜台人员说是系统自动扣除，让我自己去营业厅办理取消。我认为这种不经客户同意就扣费的行为不合理，要求退还已扣费用并说明收费依据。",
+    },
+});
+
+// 示例 6: 系统问题 - 中级别投诉
+graph.invoke({
+    complaint_info: {
+        title: "网银转账系统故障导致重复扣款",
+        description: "11月23日下午我通过网银向供应商转账10万元货款，提交后显示'系统繁忙，请稍后重试'。我又操作了2次都是同样提示。但今天查询发现账户被扣款了3次共30万元，导致我其他款项无法支付，影响了业务运营。我已联系客服，但处理效率很慢，至今还有20万元未退回。要求尽快退款并给予合理补偿。",
+    },
+});
+
+// 示例 7: 制度流程 - 低级别投诉
+graph.invoke({
+    complaint_info: {
+        title: "开通网银业务流程过于繁琐",
+        description: "我昨天去营业网点开通企业网银，需要填写5份表格，提供各种证明材料，还要法人到场签字。整个流程耗时2个多小时，中间还要在不同窗口排队等候。相比其他银行，你行的开户流程过于复杂和低效。建议优化业务流程，简化材料要求，提高办事效率，改善客户体验。",
+    },
+});
+*/
+const invoke = async () => {
+	let index = 2;
+	let complaint_info: TypeComplaintInfo;
+	if (index == 1) {
+		// 示例 1: 银行卡业务 - 高级别投诉
+		complaint_info = {
+			title: "信用卡被盗刷5万元未能及时止损",
+			description:
+				"我的信用卡在2024年11月25日凌晨3点在境外被盗刷了5万元，当时我人在深圳并持有卡片。我立即拨打客服电话申请冻结，但客服系统繁忙无人接听，导致又被盗刷2笔共计2万元。直到早上7点才联系上客服冻结卡片，此时已造成7万元损失。我认为银行风控系统存在严重问题，且客服响应不及时，要求银行承担全部损失并赔偿。",
+		};
+	} else if (index == 2) {
+		// 示例 2: 服务态度 - 中级别投诉
+		complaint_info = {
+			title: "柜台工作人员服务态度恶劣",
+			description:
+				"今天上午10点我在深圳分行营业部办理业务时，3号柜台的工作人员态度非常差。我询问理财产品相关问题时，她不耐烦地说'不懂就别买，浪费时间'，并且在我填写单据时多次催促，让我感到非常不舒服。作为老客户，我对这种服务态度非常失望，希望银行能够重视员工培训，提升服务质量。",
+		};
+	} else if (index == 3) {
+		// 示例 3: 误导销售 - 高级别投诉
+		complaint_info = {
+			title: "理财经理误导销售高风险理财产品",
+			description:
+				"上个月理财经理向我推荐了一款理财产品，声称是保本保息、随时可赎回，年化收益6%。我投入了50万元。但现在产品亏损了8万元,我要求赎回时被告知有3个月封闭期。查看合同才发现这是一款R4风险等级的非保本浮动收益产品。理财经理在销售时完全没有告知风险，涉嫌误导销售，我要求银行退还本金并赔偿损失。",
+		};
+	} else if (index == 4) {
+		// 示例 4: 贷款业务 - 紧急级别投诉
+		complaint_info = {
+			title: "房贷利率违规上浮威胁断贷",
+			description:
+				"我2020年办理的首套房贷款，合同约定LPR+0.5%。但从今年开始,银行擅自将利率调整为LPR+1.2%，每月多还款2000多元。我多次与银行沟通要求恢复原利率，但客户经理态度强硬，称这是总行统一调整。如果不接受就要求提前还款，否则影响征信。这严重侵害了我的合法权益，我已准备向银保监会投诉并寻求法律途径解决。",
+		};
+	} else if (index == 5) {
+		// 示例 5: 收费定价 - 中级别投诉
+		complaint_info = {
+			title: "账户管理费和短信费乱扣费",
+			description:
+				"我在你行开立的储蓄账户，最近3个月每月都被扣除10元账户管理费和3元短信服务费。但我从未申请过短信服务，账户管理费的收取标准也不清楚。我查询时柜台人员说是系统自动扣除，让我自己去营业厅办理取消。我认为这种不经客户同意就扣费的行为不合理，要求退还已扣费用并说明收费依据。",
+		};
+	} else if (index == 6) {
+		// 示例 6: 系统问题 - 中级别投诉
+		complaint_info = {
+			title: "网银转账系统故障导致重复扣款",
+			description:
+				"11月23日下午我通过网银向供应商转账10万元货款，提交后显示'系统繁忙，请稍后重试'。我又操作了2次都是同样提示。但今天查询发现账户被扣款了3次共30万元，导致我其他款项无法支付，影响了业务运营。我已联系客服，但处理效率很慢，至今还有20万元未退回。要求尽快退款并给予合理补偿。",
+		};
+	} else {
+		// 示例 7: 制度流程 - 低级别投诉
+		complaint_info = {
+			title: "开通网银业务流程过于繁琐",
+			description:
+				"我昨天去营业网点开通企业网银，需要填写5份表格，提供各种证明材料，还要法人到场签字。整个流程耗时2个多小时，中间还要在不同窗口排队等候。相比其他银行，你行的开户流程过于复杂和低效。建议优化业务流程，简化材料要求，提高办事效率，改善客户体验。",
+		};
+	}
+
+	const result = await graph.invoke({
+		complaint_info: complaint_info,
+	});
+	console.log(result.reply_result);
+};
+invoke();
