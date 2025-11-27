@@ -104,3 +104,6 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# 自定义文件
+*.pptx

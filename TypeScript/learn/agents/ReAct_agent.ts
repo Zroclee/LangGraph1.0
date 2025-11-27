@@ -92,6 +92,7 @@ const shouldContinue = async (state: z.infer<typeof MessagesState>) => {
 
 // 构建工作流
 import { StateGraph, START, END } from "@langchain/langgraph";
+import { MemorySaver } from "@langchain/langgraph";
 
 const workflow = new StateGraph(MessagesState)
 	.addNode("llmCall", llm_call_node)
@@ -103,7 +104,15 @@ const workflow = new StateGraph(MessagesState)
 	})
 	.addEdge("toolCall", "llmCall");
 
-const agent = workflow.compile();
+const checkpointer = new MemorySaver();
+
+const agent = workflow.compile({
+	checkpointer,
+});
+
+const config = {
+	configurable: { thread_id: "1" },
+};
 
 import { HumanMessage } from "@langchain/core/messages";
 const invoke = async () => {
@@ -115,4 +124,50 @@ const invoke = async () => {
 		console.log(result.messages[result.messages.length - 1].content);
 	}
 };
-invoke();
+// invoke();
+
+// 交互式CLI：模仿 Python while True 输入循环
+import * as readLine from "node:readline";
+async function startCli(): Promise<void> {
+	const rl = readLine.createInterface({
+		input: process.stdin,
+		output: process.stdout,
+		terminal: true,
+	});
+
+	console.log("请输入搜索关键词，输入 quit/exit/bye 退出");
+	rl.setPrompt("User: ");
+	rl.prompt();
+
+	rl.on("line", async (line: string) => {
+		const userInput = line.trim();
+		if (["quit", "exit", "bye"].includes(userInput.toLowerCase())) {
+			console.log("Goodbye!");
+			rl.close();
+			return;
+		}
+		try {
+			const result = await agent.invoke(
+				{
+					messages: [new HumanMessage({ content: userInput })],
+				},
+				config
+			);
+			// console.log(result);
+			if (result && result.messages && result.messages.length > 0) {
+				console.log(result.messages[result.messages.length - 1].content);
+			}
+		} catch (err: any) {
+			console.log(`'${userInput}' 调用失败：${err?.message ?? String(err)}`);
+		}
+		rl.prompt();
+	});
+
+	rl.on("close", () => {
+		// 与 Python 示例一致，退出时结束进程
+		if (typeof process !== "undefined") {
+			process.exit(0);
+		}
+	});
+}
+startCli();
