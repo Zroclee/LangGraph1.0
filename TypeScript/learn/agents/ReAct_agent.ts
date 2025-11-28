@@ -115,15 +115,15 @@ const config = {
 };
 
 import { HumanMessage } from "@langchain/core/messages";
-const invoke = async () => {
-	const result = await agent.invoke({
-		messages: [new HumanMessage({ content: "请帮我写一个关于机器学习的博客" })],
-	});
-	// console.log(result);
-	if (result && result.messages && result.messages.length > 0) {
-		console.log(result.messages[result.messages.length - 1].content);
-	}
-};
+// const invoke = async () => {
+// 	const result = await agent.invoke({
+// 		messages: [new HumanMessage({ content: "请帮我写一个关于机器学习的博客" })],
+// 	});
+// 	// console.log(result);
+// 	if (result && result.messages && result.messages.length > 0) {
+// 		console.log(result.messages[result.messages.length - 1].content);
+// 	}
+// };
 // invoke();
 
 // 交互式CLI：模仿 Python while True 输入循环
