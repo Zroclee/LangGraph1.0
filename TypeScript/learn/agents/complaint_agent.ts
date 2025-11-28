@@ -99,6 +99,7 @@ const CustomerInfoSchema = z.object({
 type TypeComplaintInfo = z.infer<typeof ComplaintInfoSchema>;
 type TypeCustomerInfo = z.infer<typeof CustomerInfoSchema>;
 
+// 最终的智能体状态
 const ComplaintAgentState = z.object({
 	complaint_info: ComplaintInfoSchema,
 	customer_info: CustomerInfoSchema,
@@ -264,7 +265,7 @@ const reply_node = async (state: TypeComplaintAgentState) => {
 // 通知人工节点
 const notify_node = async (state: TypeComplaintAgentState) => {
 	// 通知人工处理
-	return "投诉处理完成";
+	return "已通知人工处理";
 };
 
 // 定义工具调用条件边
@@ -339,7 +340,7 @@ const saveGraphImage = async () => {
 saveGraphImage();
 
 const invoke = async () => {
-	let index = 2;
+	let index = 1;
 	let complaint_info: TypeComplaintInfo;
 	if (index == 1) {
 		// 示例 1: 银行卡业务 - 高级别投诉

@@ -32,21 +32,47 @@ const config = {
 };
 
 // const messages = [new HumanMessage("今天深圳天气怎么样？出行如何穿搭？")];
-const messages = [
-	new HumanMessage(
-		"我在深圳龙华一区，本周六日要去大梅沙玩两天，使用高德地图MCP服务，帮我查询交通和天气，并给出出行游玩建议？"
-	),
-];
+// const messages = [
+// 	new HumanMessage(
+// 		"我在深圳龙华一区，本周六日要去大梅沙玩两天，使用高德地图MCP服务，帮我查询交通和天气，并给出出行游玩建议？"
+// 	),
+// ];
 // messages = [HumanMessage(content="珠穆朗玛峰的高度是多少米？转换成英尺是多少？")]
 // const messages = [
-// 	new HumanMessage("帮我看下本地文件files/test.txt的内容,并进行总结"),
+// 	new HumanMessage("帮我看下本地文件test.txt的内容,并进行总结"),
 // ];
 // const messages = [
 // 	new HumanMessage(
 // 		"帮我查询大模型思考框架ReAct的详细内容，进行总结并保存在react.txt"
 // 	),
 // ];
-const invoke = async () => {
+// const invoke = async () => {
+// 	const amapTools = await getAmapMcpTools();
+// 	const agent = createAgent({
+// 		model: model,
+// 		tools: [baiduTool, getCurrentTimeTool, read_file, write_file, ...amapTools],
+// 		systemPrompt: systemPrompt,
+// 		checkpointer,
+// 	});
+
+// 	const result = await agent.invoke(
+// 		{
+// 			messages: messages,
+// 		},
+// 		config
+// 	);
+
+// 	console.log(result);
+
+// 	if (result && result.messages && result.messages.length > 0) {
+// 		console.log(result.messages[result.messages.length - 1].content);
+// 	}
+// };
+// invoke();
+
+// 交互式CLI：模仿 Python while True 输入循环
+import * as readLine from "node:readline";
+async function startCli(): Promise<void> {
 	const amapTools = await getAmapMcpTools();
 	const agent = createAgent({
 		model: model,
@@ -55,17 +81,47 @@ const invoke = async () => {
 		checkpointer,
 	});
 
-	const result = await agent.invoke(
-		{
-			messages: messages,
-		},
-		config
-	);
+	const rl = readLine.createInterface({
+		input: process.stdin,
+		output: process.stdout,
+		terminal: true,
+	});
 
-	console.log(result);
+	console.log("请输入搜索关键词，输入 quit/exit/bye 退出");
+	rl.setPrompt("User: ");
+	rl.prompt();
 
-	if (result && result.messages && result.messages.length > 0) {
-		console.log(result.messages[result.messages.length - 1].content);
-	}
-};
-invoke();
+	rl.on("line", async (line: string) => {
+		const userInput = line.trim();
+		if (["quit", "exit", "bye"].includes(userInput.toLowerCase())) {
+			console.log("Goodbye!");
+			rl.close();
+			return;
+		}
+		try {
+			const result = await agent.invoke(
+				{
+					messages: userInput,
+				},
+				config
+			);
+
+			console.log(result);
+
+			if (result && result.messages && result.messages.length > 0) {
+				console.log(result.messages[result.messages.length - 1].content);
+			}
+		} catch (err: any) {
+			console.log(`'${userInput}' 调用失败：${err?.message ?? String(err)}`);
+		}
+		rl.prompt();
+	});
+
+	rl.on("close", () => {
+		// 与 Python 示例一致，退出时结束进程
+		if (typeof process !== "undefined") {
+			process.exit(0);
+		}
+	});
+}
+startCli();
